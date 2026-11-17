@@ -17,4 +17,5 @@ dependencyResolutionManagement {
 
 include(":core")
 include(":storage")
+include(":service")
 include(":app")
