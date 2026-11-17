@@ -8,7 +8,7 @@
 # Kotlin/Compose dependencies from Maven Central.
 
 pkgname=anotherpass-desktop-git
-pkgver=r0.0000000
+pkgver=r851.ec3b558b
 pkgrel=1
 pkgdesc="Offline password manager with generated master passwords (desktop port)"
 arch=('x86_64' 'aarch64')

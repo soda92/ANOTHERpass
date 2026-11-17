@@ -1,6 +1,6 @@
 pkgbase = anotherpass-desktop-git
 	pkgdesc = Offline password manager with generated master passwords (desktop port)
-	pkgver = r0.0000000
+	pkgver = r851.ec3b558b
 	pkgrel = 1
 	url = https://github.com/soda92/ANOTHERpass
 	arch = x86_64
