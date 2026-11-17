@@ -44,6 +44,12 @@ class VaultSession(
     fun decryptPassword(encrypted: Encrypted): Password =
         CryptoService.decryptPassword(masterKeySK, encrypted)
 
+    fun encryptLong(value: Long): Encrypted =
+        CryptoService.encryptLong(masterKeySK, value)
+
+    fun decryptLong(encrypted: Encrypted): Long? =
+        CryptoService.decryptLong(masterKeySK, encrypted)
+
     /** Short, human-recognisable vault fingerprint (mirrors Android's shortened master key hash). */
     fun fingerprint(): String = masterKeyHash.toShortenedFingerprint()
 

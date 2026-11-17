@@ -1,0 +1,36 @@
+package de.jepfa.yapm.service.secretgenerator
+
+import de.jepfa.yapm.model.secret.Password
+import java.security.SecureRandom
+import kotlin.math.log2
+
+abstract class GeneratorBase<T : GeneratorSpec>(
+    private val secureRandom: SecureRandom = SecureRandom(),
+) {
+
+    companion object {
+        // Never change these defaults: they are also used for de-obfuscation.
+        const val DEFAULT_ALPHA_CHARS_LOWER_CASE = "abcdefghijklmnopqrstuvwxyz"
+        val DEFAULT_ALPHA_CHARS_UPPER_CASE = DEFAULT_ALPHA_CHARS_LOWER_CASE.uppercase()
+        const val DEFAULT_DIGITS = "0123456789"
+        const val DEFAULT_SPECIAL_CHARS = "!?-,.:/$&@#_;+*"
+        const val DEFAULT_OBFUSCATIONABLE_SPECIAL_CHARS = "!?-,.:/$%&@#"
+
+        const val EXTENDED_SPECIAL_CHARS = "()[]{}<>\"'=%\\~|"
+
+        const val BRUTEFORCE_ATTEMPTS_PENTIUM = 100_000L // per second
+        const val BRUTEFORCE_ATTEMPTS_SUPERCOMP = 100_000_000_000L // 100 billion per second
+    }
+
+    abstract fun generate(spec: T): Password
+
+    abstract fun calcCombinationCount(spec: T): Double
+
+    fun calcEntropy(combinations: Double): Double = log2(combinations)
+
+    fun calcBruteForceWaitingSeconds(combinations: Double, tryPerSec: Long): Double =
+        combinations / tryPerSec
+
+    internal fun random(material: String): Char =
+        material[secureRandom.nextInt(material.length)]
+}
