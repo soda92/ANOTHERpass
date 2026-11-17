@@ -19,6 +19,7 @@ for the full architecture and phasing.
 | Compose Desktop app (create/import/unlock/list/export) | ✅ working |
 | Credential CRUD (create/edit/delete/duplicate, search) | ✅ working |
 | EMP QR import (image) + PIN-only unlock | ✅ working |
+| HiDPI / UI scaling (auto + in-app) | ✅ working |
 | Password / pseudo-phrase / PIN generator + strength | ✅ working |
 | Label management | ✅ working |
 | Expiry + pinned flags, clipboard auto-clear | ✅ working |
@@ -39,10 +40,10 @@ cd desktop
 JAVA_HOME=/usr/lib/jvm/java-21-openjdk ./gradlew test
 ```
 
-66 tests cover crypto vectors, wire format, vault lifecycle, keystore selection and
+70 tests cover crypto vectors, wire format, vault lifecycle, keystore selection and
 Secret Service integration, SQLite CRUD, Android import/export round-trips,
 secret generators, EMP recovery/obfuscation, stored master passwords, QR decoding,
-and application-level credential/label CRUD.
+UI scale resolution, and application-level credential/label CRUD.
 
 ## Run the app
 
@@ -101,6 +102,23 @@ password** on the unlock screen to remove it and require both factors again.
 > ⚠️ Storing the master password reduces the vault to “PIN + unlocked keyring”.
 > This is the same trade-off as the Android app’s optional stored master password.
 > Leave the checkbox off if you want to keep the two-factor property.
+
+### UI scaling
+
+On startup the launcher detects the desktop scale (KDE `kscreen-doctor`, GNOME
+`gsettings`) and passes it to the app. The app treats it as a **target effective
+scale** and computes the density relative to the actual Java/Skiko density, so it
+does not double-scale.
+
+Use the **UI 170%** button on the first-run/unlock screen or in the vault toolbar
+to cycle through 100–400%. The choice is saved and the window is resized.
+
+Overrides, highest priority first:
+
+1. In-app button → `$XDG_CONFIG_HOME/anotherpass/ui.properties`
+2. `ANOTHERPASS_UI_SCALE=200` or `$XDG_CONFIG_HOME/anotherpass/ui-scale`
+3. Detected KDE/GNOME scale
+4. Current system density
 
 EMP QR images are currently read from **image files**; camera scanning is not
 implemented yet.
