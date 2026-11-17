@@ -1,0 +1,36 @@
+package de.jepfa.yapm.model.encrypted
+
+data class EncryptedType(val type: Types, val payload: String? = null) {
+
+    enum class Types(val code: String, val hiddenPayload: Boolean) {
+        MASTER_PASSWD_TOKEN("MPT", hiddenPayload = false),
+        ENC_MASTER_PASSWD("EMP", hiddenPayload = false),
+        ENC_MASTER_KEY("EMK", hiddenPayload = true),
+        ENC_SALT("SLT", hiddenPayload = false),
+        ENC_WEB_MESSAGE("EWM", hiddenPayload = false),
+        ;
+
+        companion object {
+            fun of(type: String): Types? = values().firstOrNull { it.code == type }
+        }
+    }
+
+    fun serialize(): String =
+        if (payload != null) type.code + ADD_ON_SEPARATOR + payload else type.code
+
+    override fun toString(): String =
+        if (!type.hiddenPayload && payload != null) type.code + ADD_ON_SEPARATOR + payload else type.code
+
+    companion object {
+        const val ADD_ON_SEPARATOR = "#"
+
+        fun of(typeAndPayload: String): EncryptedType? {
+            if (typeAndPayload.isEmpty()) return null
+            val splitted = typeAndPayload.split(ADD_ON_SEPARATOR)
+            val typeValue = splitted[0]
+            val payload = if (splitted.size > 1) splitted[1] else null
+            val type = Types.of(typeValue) ?: return null
+            return EncryptedType(type, payload)
+        }
+    }
+}
