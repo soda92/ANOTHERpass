@@ -2,6 +2,7 @@ package de.jepfa.yapm.model.secret
 
 import de.jepfa.yapm.model.Clearable
 import de.jepfa.yapm.util.B64
+import de.jepfa.yapm.util.Loop
 import java.nio.ByteBuffer
 import java.nio.CharBuffer
 import java.nio.charset.StandardCharsets
@@ -167,6 +168,14 @@ class Password : Secret, CharSequence {
 
     fun isNumeric(): Boolean =
         data.all { it >= '0'.code.toByte() && it <= '9'.code.toByte() }
+
+    fun obfuscate(key: Key) {
+        Loop.loopPassword(this, key, forwards = true)
+    }
+
+    fun deobfuscate(key: Key) {
+        Loop.loopPassword(this, key, forwards = false)
+    }
 
     fun toFormattedPassword() =
         toFormattedPassword(FormattingStyle.DEFAULT, maskPassword = false, useShortMask = false)
