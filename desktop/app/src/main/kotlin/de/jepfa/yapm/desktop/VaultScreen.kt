@@ -55,6 +55,8 @@ fun VaultScreen(
     material: VaultKeyMaterial,
     fingerprint: String,
     keyStoreInfo: String,
+    uiScale: Float,
+    onUiScaleChange: (Float) -> Unit,
     onLock: () -> Unit,
     onExport: () -> Unit,
 ) {
@@ -111,6 +113,7 @@ fun VaultScreen(
                 OutlinedButton(onClick = { showInfo = true }) { Text("Vault info") }
                 OutlinedButton(onClick = onExport) { Text("Export") }
                 OutlinedButton(onClick = onLock) { Text("Lock") }
+                UiScaleButton(uiScale, onUiScaleChange)
             }
         }
 

@@ -22,14 +22,21 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -123,20 +130,43 @@ fun main(args: Array<String>) {
     } + " — ${choice.reason}"
 
     application {
+        val windowState = rememberWindowState(width = 1180.dp, height = 820.dp)
         Window(
             onCloseRequest = ::exitApplication,
             title = "ANOTHERpass",
-            state = rememberWindowState(width = 1180.dp, height = 820.dp),
+            state = windowState,
         ) {
-            MaterialTheme {
-                App()
+            val baseDensity = LocalDensity.current
+            var uiScale by remember {
+                mutableStateOf(UiSettings.loadScale(configDir, baseDensity.density))
+            }
+            val densityMultiplier = (uiScale / baseDensity.density).coerceIn(0.5f, 4.0f)
+
+            LaunchedEffect(uiScale, baseDensity.density) {
+                val width = 1180f * uiScale / baseDensity.density
+                val height = 820f * uiScale / baseDensity.density
+                windowState.size = DpSize(Dp(width), Dp(height))
+            }
+
+            CompositionLocalProvider(
+                LocalDensity provides Density(
+                    density = baseDensity.density * densityMultiplier,
+                    fontScale = baseDensity.fontScale * densityMultiplier,
+                )
+            ) {
+                MaterialTheme {
+                    App(uiScale) { newScale ->
+                        uiScale = newScale
+                        UiSettings.saveScale(configDir, newScale)
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun App() {
+private fun App(uiScale: Float, onUiScaleChange: (Float) -> Unit) {
     var material by remember { mutableStateOf(vaultStore.load()) }
     var session by remember { mutableStateOf<VaultSession?>(null) }
     var database by remember { mutableStateOf<VaultDatabase?>(null) }
@@ -194,6 +224,8 @@ private fun App() {
                     material = material!!,
                     fingerprint = currentSession.fingerprint(),
                     keyStoreInfo = keyStoreLabel,
+                    uiScale = uiScale,
+                    onUiScaleChange = onUiScaleChange,
                     onLock = ::lock,
                     onExport = {
                         val db = database ?: return@VaultScreen
@@ -227,12 +259,23 @@ private fun App() {
                         .padding(24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("ANOTHERpass", style = MaterialTheme.typography.headlineMedium)
-                    Text(
-                        "Desktop port — EMP import and PIN-only unlock",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Text("Keystore: $keyStoreLabel", style = MaterialTheme.typography.bodySmall)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("ANOTHERpass", style = MaterialTheme.typography.headlineMedium)
+                            Text(
+                                "Desktop port — EMP import and PIN-only unlock",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Text(
+                                "Keystore: $keyStoreLabel",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        UiScaleButton(uiScale, onUiScaleChange)
+                    }
                     Spacer(Modifier.height(4.dp))
 
                     if (material == null) {
