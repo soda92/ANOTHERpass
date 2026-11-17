@@ -110,8 +110,9 @@ On startup the launcher detects the desktop scale (KDE `kscreen-doctor`, GNOME
 scale** and computes the density relative to the actual Java/Skiko density, so it
 does not double-scale.
 
-Use the **UI 170%** button on the first-run/unlock screen or in the vault toolbar
-to cycle through 100–400%. The choice is saved and the window is resized.
+Use the **− / +** controls on the first-run/unlock header or in the vault toolbar.
+Keyboard shortcuts: **Ctrl+−** / **Ctrl++** (also Ctrl+Shift+= and the numpad
+keys). The range is 75–400%; the choice is saved and the window is resized.
 
 Overrides, highest priority first:
 
