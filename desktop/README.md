@@ -17,7 +17,10 @@ for the full architecture and phasing.
 | Android vault **import** (with master key) | ✅ working |
 | Android vault **export** (re-importable on phone) | ✅ working |
 | Compose Desktop app (create/import/unlock/list/export) | ✅ working |
-| Full CRUD UI (edit credentials, labels, generator, settings) | ⬜ Phase 4 |
+| Credential CRUD (create/edit/delete/duplicate, search) | ✅ working |
+| Password / pseudo-phrase / PIN generator + strength | ✅ working |
+| Label management | ✅ working |
+| Expiry + pinned flags, clipboard auto-clear | ✅ working |
 | Extension server | ⬜ Phase 5 |
 | Packaging / AUR | ⬜ Phase 6 |
 
@@ -35,8 +38,9 @@ cd desktop
 JAVA_HOME=/usr/lib/jvm/java-21-openjdk ./gradlew test
 ```
 
-45 tests cover crypto vectors, wire format, vault lifecycle, keystore selection and
-Secret Service integration, SQLite CRUD, and Android import/export round-trips.
+56 tests cover crypto vectors, wire format, vault lifecycle, keystore selection and
+Secret Service integration, SQLite CRUD, Android import/export round-trips,
+secret generators, and application-level credential/label CRUD.
 
 ## Run the app
 
@@ -53,6 +57,25 @@ First launch offers two paths:
 
 After unlock you can browse credentials (names/users/websites/labels) and
 **Export for Android…** to produce a file the phone can re-import.
+
+### Using the vault
+
+- **Search** filters by name, user, and website.
+- **New credential / Edit** opens the editor: name, website, user, password,
+  notes, expiry date (`yyyy-MM-dd`), OTP auth URI, labels, pinned.
+- **Generate** opens the generator:
+  - **Pseudo phrase** (human-readable, Android-compatible word generation)
+  - **Password** (upper/lower/digits/specials toggles)
+  - **PIN**
+  - strength selection from one word up to hyper, with a live preview
+- **Strength** is shown under the password field (rating + entropy bits).
+- **Labels** opens the label manager; deleting a label also removes it from every
+  credential that references it.
+- **Duplicate** creates an independent copy.
+- **Copy** puts a value on the clipboard and clears it again after 30 seconds
+  (unless something else was copied meanwhile).
+- Expired credentials are flagged in the list and in the detail view.
+- **Export** writes an Android-importable vault file.
 
 ### Where data lives
 
@@ -105,16 +128,21 @@ Credential and label IDs are preserved on import, so the encrypted
 
 ```
 desktop/
-  core/      model + crypto + vault create/unlock (no Android, no UI)
+  core/      model + crypto + generators + vault create/unlock (no Android, no UI)
   storage/   SQLite repositories, entities, Android import/export
-  app/       Compose Desktop shell
+  service/   VaultService: application-level credential/label CRUD + strength
+  app/       Compose Desktop UI
 ```
 
-## Known limitations (Phase 2)
+## Known limitations (Phase 4)
 
 - Import expects a **fresh/empty** database (first-run import). Merging into an
   existing vault is a later feature.
-- No credential editing/creation UI yet — import, browse, and export only.
+- OTP auth URIs are stored and round-tripped, but TOTP/HOTP codes are not
+  generated yet.
+- No change-master-password / change-PIN flow in the desktop UI yet.
+- Expiry is shown in-app; desktop notifications for expiring credentials are not
+  implemented yet.
 - `encSeed` and app settings from Android exports are ignored.
 - Blowfish is supported for old vaults but not offered for new ones.
 - No file→Secret Service key migration yet (existing file vaults stay on the file

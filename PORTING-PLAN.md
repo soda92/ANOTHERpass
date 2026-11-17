@@ -1,6 +1,6 @@
 # ANOTHERpass → Arch Linux (native desktop) porting plan
 
-Status: **Phase 3 complete** — JVM core, SQLite storage, Android import/export, Secret Service keystore. Phase 4 next.
+Status: **Phase 4 complete** — JVM core, storage, Secret Service keystore, Android import/export, full credential CRUD UI. Phase 5 next.
 
 ## Goal
 
@@ -93,9 +93,9 @@ reuses the same JSON keys.
    import/export (JSON vault).
 3. **Desktop keystore (done)** — Secret Service provider via `secret-tool`, safe
    file fallback, no-lockout selection rules, tests.
-4. **UI (next)** — Compose Desktop: unlock/create vault, credential list/detail, labels,
-   generator, settings, import/export, expiry reminders.
-5. **Extension server** — port `service/net` to `server` module.
+4. **UI (done)** — Compose Desktop: unlock/create vault, credential CRUD, labels,
+   password/pseudo-phrase/PIN generator, strength, expiry, pinned, export.
+5. **Extension server (next)** — port `service/net` to `server` module.
 6. **Packaging** — `jpackage` app-image, `.desktop`, icons, PKGBUILD, AUR, optional Flatpak.
 
 ## Risks
