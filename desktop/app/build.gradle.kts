@@ -1,4 +1,5 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import java.util.zip.ZipFile
 
 plugins {
     kotlin("jvm")
@@ -44,13 +45,13 @@ compose.desktop {
 // createDistributable (which runs jpackage and builds a runtime image), this
 // only copies the runtime classpath jars plus the Skiko native library.
 val runtimeClasspath = configurations.named("runtimeClasspath")
+val skikoRuntimeJar = runtimeClasspath.get()
+    .first { it.isFile && it.name.startsWith("skiko-awt-runtime-") }
 
 val stageSystemDistribution by tasks.registering(Sync::class) {
     group = "distribution"
     description = "Stages a system-JRE distribution (jars + Skiko natives, no runtime image)"
     dependsOn(tasks.named("jar"))
-    // Downloads/unpacks the platform Skiko native library into build/compose/tmp/skiko.
-    dependsOn(tasks.named("unpackDefaultComposeDesktopJvmApplicationResources"))
 
     into(layout.buildDirectory.dir("system-dist"))
 
@@ -60,10 +61,6 @@ val stageSystemDistribution by tasks.registering(Sync::class) {
             include("*.jar")
             exclude("skiko-awt-runtime-*.jar")
         }
-        // Skiko verifies the .so against the .sha256 sidecar, so keep both.
-        from(layout.buildDirectory.dir("compose/tmp/skiko")) {
-            include("libskiko-*.so", "libskiko-*.so.sha256")
-        }
     }
 
     into("bin") {
@@ -72,6 +69,27 @@ val stageSystemDistribution by tasks.registering(Sync::class) {
     }
 
     doLast {
+        // Extract the Skiko native library and checksum sidecar from the fat
+        // runtime jar. Done explicitly because Skiko refuses to load a library
+        // whose checksum sidecar is missing or does not match.
+        val libDir = layout.buildDirectory.dir("system-dist/lib").get().asFile
+        libDir.mkdirs()
+        ZipFile(skikoRuntimeJar).use { zip ->
+            zip.entries().asSequence()
+                .filter { entry ->
+                    if (entry.isDirectory) return@filter false
+                    val name = entry.name.substringAfterLast('/')
+                    name.startsWith("libskiko-") &&
+                        (name.endsWith(".so") || name.endsWith(".so.sha256"))
+                }
+                .forEach { entry ->
+                    val target = libDir.resolve(entry.name.substringAfterLast('/'))
+                    zip.getInputStream(entry).use { input ->
+                        target.outputStream().use { output -> input.copyTo(output) }
+                    }
+                }
+        }
+
         layout.buildDirectory.file("system-dist/bin/anotherpass")
             .get().asFile.setExecutable(true)
     }
