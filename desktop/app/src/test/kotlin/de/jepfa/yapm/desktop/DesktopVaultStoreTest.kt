@@ -2,6 +2,7 @@ package de.jepfa.yapm.desktop
 
 import de.jepfa.yapm.crypto.FileWrappingKeyStore
 import de.jepfa.yapm.model.encrypted.CipherAlgorithm
+import de.jepfa.yapm.model.encrypted.Encrypted
 import de.jepfa.yapm.model.kdf.KdfConfig
 import de.jepfa.yapm.model.kdf.KeyDerivationFunction
 import de.jepfa.yapm.model.secret.Password
@@ -10,6 +11,8 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class DesktopVaultStoreTest {
 
@@ -43,5 +46,35 @@ class DesktopVaultStoreTest {
         )
         assertEquals("hello desktop", unlocked.decryptString(encrypted))
         unlocked.close()
+    }
+
+    @Test
+    fun `stored master password survives save and can be cleared`() {
+        val dir = Files.createTempDirectory("anotherpass-desktop")
+        val keyStore = FileWrappingKeyStore(dir.resolve("keys.properties"))
+        val store = DesktopVaultStore(dir)
+
+        val kdf = KdfConfig(KeyDerivationFunction.BUILT_IN_PBKDF, 10_000, null)
+        val (material, session) = VaultCrypto.create(
+            Password("123456"),
+            Password("master-pass"),
+            kdf,
+            CipherAlgorithm.AES_128,
+            keyStore,
+        )
+        session.close()
+
+        val encryptedMasterPassword = Encrypted(
+            null,
+            byteArrayOf(1, 2, 3),
+            byteArrayOf(4, 5, 6),
+            CipherAlgorithm.AES_128,
+        )
+        store.save(material, encryptedMasterPassword)
+        assertEquals(encryptedMasterPassword, store.loadStoredMasterPassword())
+        assertTrue(store.hasStoredMasterPassword())
+
+        store.save(material, null)
+        assertNull(store.loadStoredMasterPassword())
     }
 }

@@ -42,13 +42,32 @@ class DesktopVaultStore(private val directory: Path) {
         }
     }
 
-    fun save(material: VaultKeyMaterial) {
+    fun loadStoredMasterPassword(): Encrypted? {
+        if (!Files.exists(file)) return null
+        return try {
+            val props = Properties()
+            Files.newInputStream(file).use { props.load(it) }
+            props.getProperty("encryptedMasterPassword")?.let { Encrypted.fromBase64String(it) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun hasStoredMasterPassword(): Boolean = loadStoredMasterPassword() != null
+
+    fun save(
+        material: VaultKeyMaterial,
+        encryptedMasterPassword: Encrypted? = loadStoredMasterPassword(),
+    ) {
         val props = Properties()
         props.setProperty("salt", B64.noWrapNoPadding(material.salt.data))
         props.setProperty("storedMasterKey", material.storedMasterKey.toBase64String())
         props.setProperty("cipher", material.cipherAlgorithm.name)
         props.setProperty("kdf", material.kdfConfig.toEncodedString())
         props.setProperty("vaultVersion", material.vaultVersion.toString())
+        if (encryptedMasterPassword != null) {
+            props.setProperty("encryptedMasterPassword", encryptedMasterPassword.toBase64String())
+        }
         Files.newOutputStream(file).use { props.store(it, "ANOTHERpass desktop vault metadata") }
         restrictPermissions()
     }

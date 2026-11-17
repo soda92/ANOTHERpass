@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
@@ -19,6 +20,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -39,11 +41,15 @@ import de.jepfa.yapm.database.VaultDatabase
 import de.jepfa.yapm.database.VaultRepositories
 import de.jepfa.yapm.io.AndroidVaultExporter
 import de.jepfa.yapm.io.AndroidVaultImporter
+import de.jepfa.yapm.io.AndroidVaultReader
+import de.jepfa.yapm.io.VaultImportException
 import de.jepfa.yapm.model.encrypted.CipherAlgorithm
+import de.jepfa.yapm.model.encrypted.Encrypted
 import de.jepfa.yapm.model.kdf.KdfConfig
 import de.jepfa.yapm.model.kdf.KeyDerivationFunction
 import de.jepfa.yapm.model.secret.Password
 import de.jepfa.yapm.service.secret.KdfParameterService
+import de.jepfa.yapm.service.secret.StoredMasterPasswordService
 import de.jepfa.yapm.util.Constants
 import de.jepfa.yapm.vault.VaultCrypto
 import de.jepfa.yapm.vault.VaultKeyMaterial
@@ -63,6 +69,20 @@ private val databasePath by lazy { configDir.resolve("credentials.db") }
 
 private lateinit var keyStore: WrappingKeyStore
 private lateinit var keyStoreLabel: String
+
+private data class CreatedVault(
+    val material: VaultKeyMaterial,
+    val session: VaultSession,
+    val database: VaultDatabase,
+    val encryptedMasterPassword: Encrypted?,
+)
+
+private data class ImportedVault(
+    val material: VaultKeyMaterial,
+    val session: VaultSession,
+    val database: VaultDatabase,
+    val masterPassword: Password,
+)
 
 fun main(args: Array<String>) {
     if (args.contains("--version") || args.contains("-v")) {
@@ -120,6 +140,9 @@ private fun App() {
     var material by remember { mutableStateOf(vaultStore.load()) }
     var session by remember { mutableStateOf<VaultSession?>(null) }
     var database by remember { mutableStateOf<VaultDatabase?>(null) }
+    var storedMasterPasswordAvailable by remember {
+        mutableStateOf(vaultStore.hasStoredMasterPassword())
+    }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -206,7 +229,7 @@ private fun App() {
                 ) {
                     Text("ANOTHERpass", style = MaterialTheme.typography.headlineMedium)
                     Text(
-                        "Desktop port — phase 4 (credential CRUD)",
+                        "Desktop port — EMP import and PIN-only unlock",
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Text("Keystore: $keyStoreLabel", style = MaterialTheme.typography.bodySmall)
@@ -215,7 +238,7 @@ private fun App() {
                     if (material == null) {
                         FirstRunPanel(
                             busy = busy,
-                            onCreate = { pin, master, useArgon2, cipher ->
+                            onCreate = { pin, master, useArgon2, cipher, storeMasterPassword ->
                                 busy = true
                                 error = null
                                 notice = null
@@ -235,18 +258,31 @@ private fun App() {
                                                     null,
                                                 )
                                             }
+                                            val pinPassword = Password(pin)
+                                            val masterPassword = Password(master)
                                             val (newMaterial, newSession) = VaultCrypto.create(
-                                                Password(pin), Password(master), kdf, cipher, keyStore,
+                                                pinPassword, masterPassword, kdf, cipher, keyStore,
                                             )
+                                            val encryptedMasterPassword = if (storeMasterPassword) {
+                                                StoredMasterPasswordService.protect(masterPassword, keyStore)
+                                            } else {
+                                                null
+                                            }
+                                            pinPassword.clear()
+                                            masterPassword.clear()
                                             val db = VaultDatabase.open(databasePath)
-                                            Triple(newMaterial, newSession, db)
+                                            CreatedVault(
+                                                newMaterial, newSession, db, encryptedMasterPassword
+                                            )
                                         }
                                     }
-                                    result.onSuccess { (newMaterial, newSession, db) ->
-                                        vaultStore.save(newMaterial)
-                                        material = newMaterial
-                                        database = db
-                                        session = newSession
+                                    result.onSuccess { created ->
+                                        vaultStore.save(created.material, created.encryptedMasterPassword)
+                                        storedMasterPasswordAvailable =
+                                            created.encryptedMasterPassword != null
+                                        material = created.material
+                                        database = created.database
+                                        session = created.session
                                         notice = "Vault created"
                                     }.onFailure {
                                         error = "Could not create vault: ${it.message}"
@@ -254,24 +290,75 @@ private fun App() {
                                     busy = false
                                 }
                             },
-                            onImport = { file, pin, master ->
+                            onImport = { vaultFile, empFile, pin, manualMaster, codeword, storeMasterPassword ->
                                 busy = true
                                 error = null
                                 notice = null
                                 scope.launch {
                                     val result = withContext(Dispatchers.Default) {
                                         runCatching {
+                                            val jsonText = vaultFile.readText()
+                                            val masterPassword = if (empFile != null) {
+                                                val empText = QrDecoder.decode(empFile)
+                                                val emp = Encrypted.fromBase64String(empText)
+                                                val code = codeword
+                                                    .takeIf { it.isNotEmpty() }
+                                                    ?.let { Password(it) }
+                                                AndroidVaultReader.recoverMasterPassword(
+                                                    jsonText, emp, code
+                                                )
+                                            } else {
+                                                Password(manualMaster)
+                                            }
+
+                                            if (!masterPassword.isValid()) {
+                                                throw VaultImportException(
+                                                    "Could not decrypt the EMP. Check the image and codeword."
+                                                )
+                                            }
+
                                             val db = VaultDatabase.open(databasePath)
-                                            val imported = AndroidVaultImporter(VaultRepositories(db))
-                                                .import(file.readText(), Password(pin), Password(master), keyStore)
-                                            Triple(imported.material, imported.session, db)
+                                            val imported = try {
+                                                AndroidVaultImporter(VaultRepositories(db))
+                                                    .import(
+                                                        jsonText,
+                                                        Password(pin),
+                                                        masterPassword,
+                                                        keyStore,
+                                                    )
+                                            } catch (e: Exception) {
+                                                if (empFile != null) {
+                                                    throw VaultImportException(
+                                                        "Wrong PIN, EMP codeword, or the EMP does not " +
+                                                            "belong to this vault",
+                                                        e,
+                                                    )
+                                                }
+                                                throw e
+                                            }
+                                            ImportedVault(
+                                                imported.material,
+                                                imported.session,
+                                                db,
+                                                masterPassword,
+                                            )
                                         }
                                     }
-                                    result.onSuccess { (newMaterial, newSession, db) ->
-                                        vaultStore.save(newMaterial)
-                                        material = newMaterial
-                                        database = db
-                                        session = newSession
+                                    result.onSuccess { imported ->
+                                        val encryptedMasterPassword = if (storeMasterPassword) {
+                                            StoredMasterPasswordService.protect(
+                                                imported.masterPassword, keyStore
+                                            )
+                                        } else {
+                                            null
+                                        }
+                                        vaultStore.save(imported.material, encryptedMasterPassword)
+                                        storedMasterPasswordAvailable =
+                                            encryptedMasterPassword != null
+                                        material = imported.material
+                                        database = imported.database
+                                        session = imported.session
+                                        imported.masterPassword.clear()
                                         notice = "Imported Android vault"
                                     }.onFailure {
                                         error = "Import failed: ${it.message}"
@@ -284,27 +371,66 @@ private fun App() {
                         UnlockPanel(
                             material = material!!,
                             busy = busy,
-                            onUnlock = { pin, master ->
+                            storedMasterPassword = storedMasterPasswordAvailable,
+                            onUnlock = { pin, master, storeMasterPassword ->
                                 busy = true
                                 error = null
                                 notice = null
                                 scope.launch {
-                                    val unlocked = withContext(Dispatchers.Default) {
+                                    val result = withContext(Dispatchers.Default) {
                                         runCatching {
+                                            val masterPassword = if (master != null) {
+                                                Password(master)
+                                            } else {
+                                                val stored = vaultStore.loadStoredMasterPassword()
+                                                    ?: throw IllegalStateException(
+                                                        "No stored master password is available"
+                                                    )
+                                                StoredMasterPasswordService.reveal(stored, keyStore).also {
+                                                    if (!it.isValid()) {
+                                                        throw IllegalStateException(
+                                                            "Stored master password is unavailable"
+                                                        )
+                                                    }
+                                                }
+                                            }
+
                                             val sess = VaultCrypto.unlock(
-                                                Password(pin), Password(master), material!!, keyStore,
-                                            ) ?: return@runCatching null
+                                                Password(pin), masterPassword, material!!, keyStore,
+                                            ) ?: throw IllegalArgumentException(
+                                                "Wrong PIN or master password"
+                                            )
+
+                                            if (storeMasterPassword && master != null) {
+                                                val encrypted = StoredMasterPasswordService.protect(
+                                                    masterPassword, keyStore
+                                                )
+                                                vaultStore.save(material!!, encrypted)
+                                            }
+                                            masterPassword.clear()
                                             val db = VaultDatabase.open(databasePath)
                                             sess to db
-                                        }.getOrNull()
+                                        }
                                     }
-                                    if (unlocked == null) {
-                                        error = "Wrong PIN or master password."
-                                    } else {
+                                    result.onSuccess { unlocked ->
                                         session = unlocked.first
                                         database = unlocked.second
+                                        if (storeMasterPassword && master != null) {
+                                            storedMasterPasswordAvailable = true
+                                        }
+                                    }.onFailure {
+                                        error = it.message ?: "Unlock failed"
                                     }
                                     busy = false
+                                }
+                            },
+                            onForgetStored = {
+                                val currentMaterial = material
+                                if (currentMaterial != null) {
+                                    StoredMasterPasswordService.forget(keyStore)
+                                    vaultStore.save(currentMaterial, null)
+                                    storedMasterPasswordAvailable = false
+                                    notice = "Stored master password removed"
                                 }
                             },
                         )
@@ -321,6 +447,14 @@ private fun chooseOpenFile(): File? {
     return if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
 }
 
+private fun chooseImageFile(): File? {
+    val chooser = JFileChooser()
+    chooser.fileFilter = FileNameExtensionFilter(
+        "QR image (*.png, *.jpg, *.jpeg)", "png", "jpg", "jpeg"
+    )
+    return if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
+}
+
 private fun chooseSaveFile(): File? {
     val chooser = JFileChooser()
     chooser.selectedFile = File("anotherpass-export.json")
@@ -331,17 +465,34 @@ private fun chooseSaveFile(): File? {
 @Composable
 private fun FirstRunPanel(
     busy: Boolean,
-    onCreate: (pin: String, master: String, useArgon2: Boolean, cipher: CipherAlgorithm) -> Unit,
-    onImport: (file: File, pin: String, master: String) -> Unit,
+    onCreate: (
+        pin: String,
+        master: String,
+        useArgon2: Boolean,
+        cipher: CipherAlgorithm,
+        storeMasterPassword: Boolean,
+    ) -> Unit,
+    onImport: (
+        vaultFile: File,
+        empFile: File?,
+        pin: String,
+        manualMaster: String,
+        codeword: String,
+        storeMasterPassword: Boolean,
+    ) -> Unit,
 ) {
     var pin by remember { mutableStateOf("") }
     var master by remember { mutableStateOf("") }
     var useArgon2 by remember { mutableStateOf(true) }
     var cipher by remember { mutableStateOf(CipherAlgorithm.AES_256) }
+    var createStore by remember { mutableStateOf(true) }
 
     var importFile by remember { mutableStateOf<File?>(null) }
+    var importEmp by remember { mutableStateOf<File?>(null) }
     var importPin by remember { mutableStateOf("") }
     var importMaster by remember { mutableStateOf("") }
+    var importCodeword by remember { mutableStateOf("") }
+    var importStore by remember { mutableStateOf(true) }
 
     Text("Create a new vault", style = MaterialTheme.typography.titleMedium)
     OutlinedTextField(
@@ -381,8 +532,13 @@ private fun FirstRunPanel(
         }
     }
 
+    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Checkbox(checked = createStore, onCheckedChange = { createStore = it })
+        Text("Store master password for PIN-only unlock")
+    }
+
     Button(
-        onClick = { onCreate(pin, master, useArgon2, cipher) },
+        onClick = { onCreate(pin, master, useArgon2, cipher, createStore) },
         enabled = !busy && pin.length >= Constants.MIN_PIN_LENGTH && master.isNotEmpty(),
     ) {
         Text("Create vault")
@@ -391,7 +547,8 @@ private fun FirstRunPanel(
     Spacer(Modifier.height(8.dp))
     Text("Import from Android", style = MaterialTheme.typography.titleMedium)
     Text(
-        "On the phone: Export vault → enable \"include master key\". Then open that file here.",
+        "Choose the vault export. If the export has no master key, also choose the EMP QR image " +
+            "and enter its codeword. The master password is recovered and verified during import.",
         style = MaterialTheme.typography.bodySmall,
     )
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -399,6 +556,15 @@ private fun FirstRunPanel(
             Text("Choose export file…")
         }
         importFile?.let { Text(it.name, style = MaterialTheme.typography.bodySmall) }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { importEmp = chooseImageFile() }, enabled = !busy) {
+            Text("Choose EMP QR image…")
+        }
+        importEmp?.let {
+            Text(it.name, style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = { importEmp = null }) { Text("Clear") }
+        }
     }
     OutlinedTextField(
         value = importPin,
@@ -408,17 +574,48 @@ private fun FirstRunPanel(
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),
     )
-    OutlinedTextField(
-        value = importMaster,
-        onValueChange = { importMaster = it },
-        label = { Text("Master password") },
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        modifier = Modifier.fillMaxWidth(),
-    )
+    if (importEmp != null) {
+        OutlinedTextField(
+            value = importCodeword,
+            onValueChange = { importCodeword = it },
+            label = { Text("EMP codeword (required if the EMP is protected)") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            "The master password will be recovered from the EMP and verified against the vault.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    } else {
+        OutlinedTextField(
+            value = importMaster,
+            onValueChange = { importMaster = it },
+            label = { Text("Master password") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Checkbox(checked = importStore, onCheckedChange = { importStore = it })
+        Text("Store master password for PIN-only unlock")
+    }
     Button(
-        onClick = { importFile?.let { onImport(it, importPin, importMaster) } },
-        enabled = !busy && importFile != null && importPin.isNotEmpty() && importMaster.isNotEmpty(),
+        onClick = {
+            importFile?.let {
+                onImport(
+                    it,
+                    importEmp,
+                    importPin,
+                    importMaster,
+                    importCodeword,
+                    importStore,
+                )
+            }
+        },
+        enabled = !busy && importFile != null && importPin.isNotEmpty() &&
+            (importEmp != null || importMaster.isNotEmpty()),
     ) {
         Text("Import vault")
     }
@@ -428,10 +625,15 @@ private fun FirstRunPanel(
 private fun UnlockPanel(
     material: VaultKeyMaterial,
     busy: Boolean,
-    onUnlock: (pin: String, master: String) -> Unit,
+    storedMasterPassword: Boolean,
+    onUnlock: (pin: String, master: String?, storeMasterPassword: Boolean) -> Unit,
+    onForgetStored: () -> Unit,
 ) {
     var pin by remember { mutableStateOf("") }
     var master by remember { mutableStateOf("") }
+    var storeMasterPassword by remember { mutableStateOf(true) }
+    var manual by remember { mutableStateOf(false) }
+    val useStored = storedMasterPassword && !manual
 
     Text("Unlock vault", style = MaterialTheme.typography.titleMedium)
     Text(
@@ -447,19 +649,57 @@ private fun UnlockPanel(
         visualTransformation = PasswordVisualTransformation(),
         modifier = Modifier.fillMaxWidth(),
     )
-    OutlinedTextField(
-        value = master,
-        onValueChange = { master = it },
-        label = { Text("Master password") },
-        singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
-        modifier = Modifier.fillMaxWidth(),
-    )
+
+    if (useStored) {
+        Text(
+            "Master password is stored in the Secret Service. Unlock with your PIN only.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+    } else {
+        OutlinedTextField(
+            value = master,
+            onValueChange = { master = it },
+            label = { Text("Master password") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Checkbox(
+                checked = storeMasterPassword,
+                onCheckedChange = { storeMasterPassword = it },
+            )
+            Text("Store master password for PIN-only unlock")
+        }
+    }
 
     Button(
-        onClick = { onUnlock(pin, master) },
-        enabled = !busy && pin.isNotEmpty() && master.isNotEmpty(),
+        onClick = {
+            onUnlock(
+                pin,
+                if (useStored) null else master,
+                storeMasterPassword,
+            )
+        },
+        enabled = !busy && pin.isNotEmpty() && (useStored || master.isNotEmpty()),
     ) {
         Text("Unlock")
+    }
+
+    if (storedMasterPassword) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (manual) {
+                TextButton(onClick = { manual = false }) {
+                    Text("Use stored master password")
+                }
+            } else {
+                TextButton(onClick = { manual = true }) {
+                    Text("Enter master password manually")
+                }
+            }
+            TextButton(onClick = onForgetStored) {
+                Text("Forget stored master password")
+            }
+        }
     }
 }
