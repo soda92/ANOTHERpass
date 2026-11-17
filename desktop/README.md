@@ -21,8 +21,8 @@ for the full architecture and phasing.
 | Password / pseudo-phrase / PIN generator + strength | ✅ working |
 | Label management | ✅ working |
 | Expiry + pinned flags, clipboard auto-clear | ✅ working |
-| Extension server | ⬜ Phase 5 |
-| Packaging / AUR | ⬜ Phase 6 |
+| Extension server | ⏸ deferred (Phase 5 skipped) |
+| Packaging / AUR (PKGBUILD, desktop entry, AppStream, icons) | ✅ working |
 
 ## Requirements
 
@@ -132,7 +132,34 @@ desktop/
   storage/   SQLite repositories, entities, Android import/export
   service/   VaultService: application-level credential/label CRUD + strength
   app/       Compose Desktop UI
+  packaging/ Arch launcher, desktop entry, AppStream, icons, PKGBUILD
 ```
+
+## Packaging (Arch Linux)
+
+Fast local staging without root:
+
+```bash
+cd desktop
+./packaging/make-local-dist.sh
+app/build/local-dist/usr/bin/anotherpass --version
+app/build/local-dist/usr/bin/anotherpass --self-test
+```
+
+Build and install the package:
+
+```bash
+cd desktop/packaging/arch
+makepkg -si
+```
+
+- `:app:stageSystemDistribution` assembles only the jars + Skiko natives for a
+  system-JRE install and is much faster than jpackage.
+- `:app:createDistributable` still produces a self-contained jpackage app-image
+  with a bundled runtime if you prefer that.
+- `options=(!strip)` is required because Skiko checksums its native library.
+- See [`packaging/README.md`](packaging/README.md) for AUR/`.SRCINFO` and
+  packaging details.
 
 ## Known limitations (Phase 4)
 
@@ -147,3 +174,5 @@ desktop/
 - Blowfish is supported for old vaults but not offered for new ones.
 - No file→Secret Service key migration yet (existing file vaults stay on the file
   store).
+- Flatpak packaging is not provided; the PKGBUILD is a VCS (`-git`) package until
+  release tags exist.

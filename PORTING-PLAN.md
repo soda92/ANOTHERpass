@@ -1,6 +1,6 @@
 # ANOTHERpass → Arch Linux (native desktop) porting plan
 
-Status: **Phase 4 complete** — JVM core, storage, Secret Service keystore, Android import/export, full credential CRUD UI. Phase 5 next.
+Status: **Phase 6 complete** — native Linux port with credential CRUD, Secret Service keystore, Android import/export, and Arch packaging. Phase 5 (extension server) was skipped by request.
 
 ## Goal
 
@@ -95,8 +95,9 @@ reuses the same JSON keys.
    file fallback, no-lockout selection rules, tests.
 4. **UI (done)** — Compose Desktop: unlock/create vault, credential CRUD, labels,
    password/pseudo-phrase/PIN generator, strength, expiry, pinned, export.
-5. **Extension server (next)** — port `service/net` to `server` module.
-6. **Packaging** — `jpackage` app-image, `.desktop`, icons, PKGBUILD, AUR, optional Flatpak.
+5. **Extension server (deferred)** — port `service/net` to a `server` module.
+6. **Packaging (done)** — system-JRE distribution via `:app:stageSystemDistribution`,
+   jpackage app-image alternative, `.desktop`, AppStream, icons, Arch PKGBUILD.
 
 ## Risks
 
