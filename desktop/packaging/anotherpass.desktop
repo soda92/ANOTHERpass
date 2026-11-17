@@ -9,4 +9,5 @@ Icon=anotherpass
 Terminal=false
 Categories=Utility;Security;
 Keywords=password;vault;credentials;secret;offline;
+StartupWMClass=de-jepfa-yapm-desktop-MainKt
 StartupNotify=true
