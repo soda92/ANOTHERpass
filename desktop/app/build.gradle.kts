@@ -13,6 +13,7 @@ kotlin {
 dependencies {
     implementation(project(":core"))
     implementation(project(":storage"))
+    implementation(project(":service"))
     implementation(compose.desktop.currentOs)
     implementation(compose.material3)
     implementation(compose.materialIconsExtended)
