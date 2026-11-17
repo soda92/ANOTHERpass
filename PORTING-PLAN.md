@@ -1,6 +1,6 @@
 # ANOTHERpass → Arch Linux (native desktop) porting plan
 
-Status: **Phase 6 complete** — native Linux port with credential CRUD, Secret Service keystore, Android import/export, and Arch packaging. Phase 5 (extension server) was skipped by request.
+Status: **Phase 6 complete** — native Linux port with credential CRUD, Secret Service keystore, Android import/export, EMP QR import, PIN-only unlock, and Arch packaging. Phase 5 (extension server) was skipped by request.
 
 ## Goal
 

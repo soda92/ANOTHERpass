@@ -18,6 +18,7 @@ for the full architecture and phasing.
 | Android vault **export** (re-importable on phone) | ✅ working |
 | Compose Desktop app (create/import/unlock/list/export) | ✅ working |
 | Credential CRUD (create/edit/delete/duplicate, search) | ✅ working |
+| EMP QR import (image) + PIN-only unlock | ✅ working |
 | Password / pseudo-phrase / PIN generator + strength | ✅ working |
 | Label management | ✅ working |
 | Expiry + pinned flags, clipboard auto-clear | ✅ working |
@@ -38,9 +39,10 @@ cd desktop
 JAVA_HOME=/usr/lib/jvm/java-21-openjdk ./gradlew test
 ```
 
-56 tests cover crypto vectors, wire format, vault lifecycle, keystore selection and
+66 tests cover crypto vectors, wire format, vault lifecycle, keystore selection and
 Secret Service integration, SQLite CRUD, Android import/export round-trips,
-secret generators, and application-level credential/label CRUD.
+secret generators, EMP recovery/obfuscation, stored master passwords, QR decoding,
+and application-level credential/label CRUD.
 
 ## Run the app
 
@@ -77,11 +79,37 @@ After unlock you can browse credentials (names/users/websites/labels) and
 - Expired credentials are flagged in the list and in the detail view.
 - **Export** writes an Android-importable vault file.
 
+### EMP QR import and PIN-only unlock
+
+If the vault export does **not** contain the master key, or you want to recover the
+master password from your protected EMP backup:
+
+1. Choose the vault JSON.
+2. Choose the **EMP QR image** (for example `Your Protected Master Password.jpeg`).
+3. Enter the vault PIN and the **EMP codeword**.
+4. Optionally leave **Store master password for PIN-only unlock** checked.
+5. Import.
+
+The app decodes the QR with ZXing, decrypts the EMP with the vault salt, deobfuscates
+it with the codeword, and verifies PIN + recovered master password against the
+EMK. A wrong PIN, codeword, or mismatched EMP fails the import.
+
+When the master password is stored, future unlocks ask only for the PIN (the
+master password is unwrapped from the Secret Service). Use **Forget stored master
+password** on the unlock screen to remove it and require both factors again.
+
+> ⚠️ Storing the master password reduces the vault to “PIN + unlocked keyring”.
+> This is the same trade-off as the Android app’s optional stored master password.
+> Leave the checkbox off if you want to keep the two-factor property.
+
+EMP QR images are currently read from **image files**; camera scanning is not
+implemented yet.
+
 ### Where data lives
 
 | Path | Contents |
 |---|---|
-| `$XDG_CONFIG_HOME/anotherpass/vault.properties` | KDF config, salt, wrapped master key |
+| `$XDG_CONFIG_HOME/anotherpass/vault.properties` | KDF config, salt, wrapped master key, optional wrapped master password |
 | `$XDG_CONFIG_HOME/anotherpass/credentials.db` | SQLite, Android schema v10 (fields are app-encrypted) |
 | Secret Service | wrapping keys (`application=anotherpass`, `purpose=wrapping-key`) |
 | `$XDG_CONFIG_HOME/anotherpass/wrapping-keys.properties` | `0600` fallback keystore, only when no keyring is available |
@@ -170,6 +198,7 @@ makepkg -si
 - No change-master-password / change-PIN flow in the desktop UI yet.
 - Expiry is shown in-app; desktop notifications for expiring credentials are not
   implemented yet.
+- EMP QR images are read from files; camera scanning is not implemented yet.
 - `encSeed` and app settings from Android exports are ignored.
 - Blowfish is supported for old vaults but not offered for new ones.
 - No file→Secret Service key migration yet (existing file vaults stay on the file
