@@ -32,6 +32,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.Density
@@ -131,15 +136,43 @@ fun main(args: Array<String>) {
 
     application {
         val windowState = rememberWindowState(width = 1180.dp, height = 820.dp)
+        val uiScaleState = remember { mutableStateOf(-1f) }
+        val setScale: (Float) -> Unit = { newScale ->
+            val clamped = newScale.coerceIn(0.5f, 4.0f)
+            uiScaleState.value = clamped
+            UiSettings.saveScale(configDir, clamped)
+        }
+
         Window(
             onCloseRequest = ::exitApplication,
             title = "ANOTHERpass",
             state = windowState,
+            onPreviewKeyEvent = { event ->
+                if (event.type == KeyEventType.KeyDown && event.isCtrlPressed) {
+                    val current = uiScaleState.value.takeIf { it > 0f } ?: 1.0f
+                    val next = when (event.key) {
+                        Key.Equals, Key.Plus, Key.NumPadAdd -> nextUiScale(current)
+                        Key.Minus, Key.NumPadSubtract -> previousUiScale(current)
+                        else -> null
+                    }
+                    if (next != null && next != current) {
+                        setScale(next)
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            },
         ) {
             val baseDensity = LocalDensity.current
-            var uiScale by remember {
-                mutableStateOf(UiSettings.loadScale(configDir, baseDensity.density))
+            LaunchedEffect(Unit) {
+                if (uiScaleState.value <= 0f) {
+                    uiScaleState.value = UiSettings.loadScale(configDir, baseDensity.density)
+                }
             }
+            val uiScale = if (uiScaleState.value > 0f) uiScaleState.value else baseDensity.density
             val densityMultiplier = (uiScale / baseDensity.density).coerceIn(0.5f, 4.0f)
 
             LaunchedEffect(uiScale, baseDensity.density) {
@@ -155,10 +188,7 @@ fun main(args: Array<String>) {
                 )
             ) {
                 MaterialTheme {
-                    App(uiScale) { newScale ->
-                        uiScale = newScale
-                        UiSettings.saveScale(configDir, newScale)
-                    }
+                    App(uiScale, setScale)
                 }
             }
         }
@@ -274,7 +304,7 @@ private fun App(uiScale: Float, onUiScaleChange: (Float) -> Unit) {
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                        UiScaleButton(uiScale, onUiScaleChange)
+                        UiScaleControls(uiScale, onUiScaleChange)
                     }
                     Spacer(Modifier.height(4.dp))
 

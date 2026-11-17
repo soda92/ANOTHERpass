@@ -113,7 +113,7 @@ fun VaultScreen(
                 OutlinedButton(onClick = { showInfo = true }) { Text("Vault info") }
                 OutlinedButton(onClick = onExport) { Text("Export") }
                 OutlinedButton(onClick = onLock) { Text("Lock") }
-                UiScaleButton(uiScale, onUiScaleChange)
+                UiScaleControls(uiScale, onUiScaleChange)
             }
         }
 
