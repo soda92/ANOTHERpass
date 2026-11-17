@@ -1,0 +1,21 @@
+pkgbase = anotherpass-desktop-git
+	pkgdesc = Offline password manager with generated master passwords (desktop port)
+	pkgver = r0.0000000
+	pkgrel = 1
+	url = https://github.com/soda92/ANOTHERpass
+	arch = x86_64
+	arch = aarch64
+	license = GPL-3.0-only
+	makedepends = git
+	makedepends = jdk21-openjdk
+	depends = jre21-openjdk
+	depends = libsecret
+	optdepends = gnome-keyring: Secret Service keyring backend
+	optdepends = kwallet: alternative Secret Service backend
+	provides = anotherpass-desktop
+	conflicts = anotherpass-desktop
+	options = !strip
+	source = git+https://github.com/soda92/ANOTHERpass.git
+	md5sums = SKIP
+
+pkgname = anotherpass-desktop-git

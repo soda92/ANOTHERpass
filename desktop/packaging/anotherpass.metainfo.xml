@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>de.jepfa.anotherpass.desktop</id>
+  <name>ANOTHERpass</name>
+  <summary>Offline password manager with generated master passwords</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-only</project_license>
+  <description>
+    <p>
+      ANOTHERpass is an offline password manager. Instead of asking you to remember
+      a strong master password, it generates one and combines it with a PIN to
+      unlock the vault.
+    </p>
+    <p>
+      Features include generated pseudo-phrase passwords, labels, expiring
+      credentials, pinned entries, Android vault import/export, and a Secret
+      Service backed keystore on Linux.
+    </p>
+  </description>
+  <launchable type="desktop-id">anotherpass.desktop</launchable>
+  <url type="homepage">https://anotherpass.jepfa.de</url>
+  <url type="bugtracker">https://github.com/soda92/ANOTHERpass/issues</url>
+  <url type="vcs-browser">https://github.com/soda92/ANOTHERpass</url>
+  <developer id="de.jepfa">
+    <name>ANOTHERpass contributors</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+  <provides>
+    <binary>anotherpass</binary>
+  </provides>
+  <categories>
+    <category>Utility</category>
+    <category>Security</category>
+  </categories>
+  <releases>
+    <release version="0.1.0" date="2026-11-17"/>
+  </releases>
+</component>

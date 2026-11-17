@@ -1,0 +1,78 @@
+# Maintainer: Your Name <you@example.com>
+#
+# Arch package for the ANOTHERpass desktop port (VCS package).
+# Builds a system-JRE distribution: the jpackage app-image is used only to
+# assemble the runtime classpath; the bundled JRE is not shipped.
+#
+# Note: network access is required during build() because Gradle resolves
+# Kotlin/Compose dependencies from Maven Central.
+
+pkgname=anotherpass-desktop-git
+pkgver=r0.0000000
+pkgrel=1
+pkgdesc="Offline password manager with generated master passwords (desktop port)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/soda92/ANOTHERpass"
+license=('GPL-3.0-only')
+depends=('jre21-openjdk' 'libsecret')
+makedepends=('git' 'jdk21-openjdk')
+optdepends=(
+  'gnome-keyring: Secret Service keyring backend'
+  'kwallet: alternative Secret Service backend'
+)
+provides=('anotherpass-desktop')
+conflicts=('anotherpass-desktop')
+options=(!strip)
+source=("git+https://github.com/soda92/ANOTHERpass.git")
+md5sums=('SKIP')
+
+pkgver() {
+  cd ANOTHERpass
+  printf 'r%s.%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cd "ANOTHERpass/desktop"
+  export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
+  ./gradlew --no-daemon --console=plain :app:stageSystemDistribution
+}
+
+check() {
+  cd "ANOTHERpass/desktop"
+  export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
+  ./gradlew --no-daemon --console=plain test
+}
+
+package() {
+  local dist="$srcdir/ANOTHERpass/desktop/app/build/system-dist"
+
+  install -d "$pkgdir/usr/lib/anotherpass/lib"
+  cp -a "$dist/lib/." "$pkgdir/usr/lib/anotherpass/lib/"
+
+  install -Dm755 "$dist/bin/anotherpass" \
+    "$pkgdir/usr/lib/anotherpass/bin/anotherpass"
+  install -d "$pkgdir/usr/bin"
+  ln -s ../lib/anotherpass/bin/anotherpass "$pkgdir/usr/bin/anotherpass"
+
+  install -Dm644 "$srcdir/ANOTHERpass/desktop/packaging/anotherpass.desktop" \
+    "$pkgdir/usr/share/applications/anotherpass.desktop"
+  install -Dm644 "$srcdir/ANOTHERpass/desktop/packaging/anotherpass.metainfo.xml" \
+    "$pkgdir/usr/share/metainfo/anotherpass.metainfo.xml"
+
+  for size in 16 24 32 48 64 128 256 512; do
+    install -Dm644 "$srcdir/ANOTHERpass/desktop/packaging/anotherpass-${size}.png" \
+      "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/anotherpass.png"
+  done
+
+  install -Dm644 "$srcdir/ANOTHERpass/COPYING" \
+    "$pkgdir/usr/share/licenses/$pkgname/COPYING"
+}
+
+post_install() {
+  gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor 2>/dev/null || true
+  update-desktop-database -q /usr/share/applications 2>/dev/null || true
+}
+
+post_upgrade() {
+  post_install
+}

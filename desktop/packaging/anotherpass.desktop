@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=ANOTHERpass
+GenericName=Password Manager
+Comment=Offline password manager with generated master passwords
+Exec=anotherpass
+Icon=anotherpass
+Terminal=false
+Categories=Utility;Security;
+Keywords=password;vault;credentials;secret;offline;
+StartupNotify=true
