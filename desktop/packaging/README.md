@@ -68,6 +68,10 @@ Then push `PKGBUILD` and `.SRCINFO` to an AUR repository named
 - **`options=(!strip)` is required.** Skiko verifies `libskiko-linux-x64.so`
   against its `.sha256` sidecar. Stripping the library changes the hash and the
   app refuses to start.
+- **HiDPI.** The launcher detects KDE `kscreen-doctor` / GNOME `gsettings` scale
+  and exports it to the app. Override with `ANOTHERPASS_UI_SCALE` or
+  `~/.config/anotherpass/ui-scale`; the in-app UI button persists a per-user
+  choice in `ui.properties`.
 - **Network during build.** The pinned Gradle wrapper downloads Gradle 8.12 and
   resolves Kotlin/Compose dependencies from Maven Central. `build()` needs network
   access unless the wrapper and dependency caches are pre-seeded.
