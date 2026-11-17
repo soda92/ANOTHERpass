@@ -39,3 +39,40 @@ compose.desktop {
         }
     }
 }
+
+// Fast packaging distribution for system-JRE installs. Unlike
+// createDistributable (which runs jpackage and builds a runtime image), this
+// only copies the runtime classpath jars plus the Skiko native library.
+val runtimeClasspath = configurations.named("runtimeClasspath")
+
+val stageSystemDistribution by tasks.registering(Sync::class) {
+    group = "distribution"
+    description = "Stages a system-JRE distribution (jars + Skiko natives, no runtime image)"
+    dependsOn(tasks.named("jar"))
+    // Downloads/unpacks the platform Skiko native library into build/compose/tmp/skiko.
+    dependsOn(tasks.named("unpackDefaultComposeDesktopJvmApplicationResources"))
+
+    into(layout.buildDirectory.dir("system-dist"))
+
+    into("lib") {
+        from(tasks.named("jar"))
+        from(runtimeClasspath) {
+            include("*.jar")
+            exclude("skiko-awt-runtime-*.jar")
+        }
+        // Skiko verifies the .so against the .sha256 sidecar, so keep both.
+        from(layout.buildDirectory.dir("compose/tmp/skiko")) {
+            include("libskiko-*.so", "libskiko-*.so.sha256")
+        }
+    }
+
+    into("bin") {
+        from(rootProject.file("packaging/anotherpass.sh"))
+        rename { "anotherpass" }
+    }
+
+    doLast {
+        layout.buildDirectory.file("system-dist/bin/anotherpass")
+            .get().asFile.setExecutable(true)
+    }
+}

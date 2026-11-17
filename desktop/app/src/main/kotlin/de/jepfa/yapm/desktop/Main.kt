@@ -55,14 +55,41 @@ import java.io.File
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 
-private val configDir = DesktopVaultStore.defaultConfigDir()
-private val vaultStore = DesktopVaultStore(configDir)
-private val databasePath = configDir.resolve("credentials.db")
+private const val APP_VERSION = "0.1.0"
+
+private val configDir by lazy { DesktopVaultStore.defaultConfigDir() }
+private val vaultStore by lazy { DesktopVaultStore(configDir) }
+private val databasePath by lazy { configDir.resolve("credentials.db") }
 
 private lateinit var keyStore: WrappingKeyStore
 private lateinit var keyStoreLabel: String
 
-fun main() {
+fun main(args: Array<String>) {
+    if (args.contains("--version") || args.contains("-v")) {
+        println("ANOTHERpass desktop $APP_VERSION")
+        return
+    }
+    if (args.contains("--help") || args.contains("-h")) {
+        println(
+            """
+            ANOTHERpass desktop $APP_VERSION
+            Usage: anotherpass [options]
+
+              -h, --help     show this help
+              -v, --version  print the version
+              --self-test    load native libraries and exit (packaging check)
+
+            Configuration and vault data live in ${'$'}XDG_CONFIG_HOME/anotherpass.
+            """.trimIndent()
+        )
+        return
+    }
+    if (args.contains("--self-test")) {
+        org.jetbrains.skiko.Library.load()
+        println("ANOTHERpass desktop $APP_VERSION self-test OK (Skiko loaded)")
+        return
+    }
+
     val choice = try {
         KeyStoreFactory.create(configDir)
     } catch (e: Exception) {
