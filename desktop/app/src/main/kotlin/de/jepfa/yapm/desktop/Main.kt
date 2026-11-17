@@ -32,6 +32,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -731,6 +736,13 @@ private fun UnlockPanel(
     var storeMasterPassword by remember { mutableStateOf(true) }
     var manual by remember { mutableStateOf(false) }
     val useStored = storedMasterPassword && !manual
+    val canSubmit = !busy && pin.isNotEmpty() && (useStored || master.isNotEmpty())
+
+    fun submit() {
+        if (canSubmit) {
+            onUnlock(pin, if (useStored) null else master, storeMasterPassword)
+        }
+    }
 
     Text("Unlock vault", style = MaterialTheme.typography.titleMedium)
     Text(
@@ -744,7 +756,14 @@ private fun UnlockPanel(
         label = { Text("PIN") },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { event ->
+            if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
+                submit()
+                canSubmit
+            } else {
+                false
+            }
+        },
     )
 
     if (useStored) {
@@ -759,7 +778,14 @@ private fun UnlockPanel(
             label = { Text("Master password") },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key == Key.Enter) {
+                    submit()
+                    canSubmit
+                } else {
+                    false
+                }
+            },
         )
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Checkbox(
@@ -771,14 +797,8 @@ private fun UnlockPanel(
     }
 
     Button(
-        onClick = {
-            onUnlock(
-                pin,
-                if (useStored) null else master,
-                storeMasterPassword,
-            )
-        },
-        enabled = !busy && pin.isNotEmpty() && (useStored || master.isNotEmpty()),
+        onClick = { submit() },
+        enabled = canSubmit,
     ) {
         Text("Unlock")
     }
