@@ -96,7 +96,8 @@ it with the codeword, and verifies PIN + recovered master password against the
 EMK. A wrong PIN, codeword, or mismatched EMP fails the import.
 
 When the master password is stored, future unlocks ask only for the PIN (the
-master password is unwrapped from the Secret Service). Use **Forget stored master
+master password is unwrapped from the Secret Service). Press **Enter** in the
+PIN or master-password field to unlock. Use **Forget stored master
 password** on the unlock screen to remove it and require both factors again.
 
 > ⚠️ Storing the master password reduces the vault to “PIN + unlocked keyring”.
